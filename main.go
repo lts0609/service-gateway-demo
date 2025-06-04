@@ -128,7 +128,6 @@ func findServiceByPodLabels(ctx context.Context, client clientset.Interface, pod
 		return nil, fmt.Errorf("pod %s has no label", pod.Name)
 	}
 	labelSet := labels.Set(pod.Labels)
-	selectorObj := &metav1.LabelSelector{MatchLabels: podLabel}
 
 	services, err := client.CoreV1().Services(pod.Namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -138,11 +137,13 @@ func findServiceByPodLabels(ctx context.Context, client clientset.Interface, pod
 		return nil, fmt.Errorf("no service found in namespace %s", pod.Namespace)
 	}
 	for _, service := range services.Items {
-		selector, err := metav1.LabelSelectorAsSelector(selectorObj)
+		selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+			MatchLabels: service.Spec.Selector,
+		})
 		if err != nil {
 			return nil, err
 		}
-		if selector.Matches(labelSet) {
+		if !selector.Empty() && selector.Matches(labelSet) {
 			return &service, nil
 		}
 	}
