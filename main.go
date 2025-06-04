@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
@@ -37,23 +37,23 @@ func main() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			deploymentName, err := extractFromRequestURL(req.URL.Path)
+			podName, err := extractFromRequestURL(req.URL.Path)
 			if err != nil {
 				klog.Errorf("Error extracting deployment from url: %v", err)
 				req.URL.Path = "/error"
 				return
 			}
 
-			deployment, err := findDeploymentObject(ctx, client, deploymentName)
+			pod, err := client.CoreV1().Pods(v1.NamespaceAll).Get(ctx, podName, metav1.GetOptions{})
 			if err != nil {
-				klog.Errorf("Error finding deployment: %v", err)
+				klog.Errorf("Error get pod: %v", err)
 				req.URL.Path = "/error"
 				return
 			}
 
-			service, err := findServiceByDeploymentLabels(ctx, client, deployment)
+			service, err := findServiceByPodLabels(ctx, client, pod)
 			if err != nil {
-				klog.Errorf("Error finding service url: %v", err)
+				klog.Errorf("Error finding service by leabels: %v", err)
 				req.URL.Path = "/error"
 				return
 			}
@@ -65,7 +65,7 @@ func main() {
 				return
 			}
 
-			newPath := strings.TrimPrefix(req.URL.Path, fmt.Sprintf("/instance/%s", deploymentName))
+			newPath := strings.TrimPrefix(req.URL.Path, fmt.Sprintf("/instance/%s", podName))
 			if newPath == "" {
 				newPath = "/"
 			}
@@ -107,38 +107,31 @@ func extractFromRequestURL(path string) (string, error) {
 	return matches[1], nil
 }
 
-func findDeploymentObject(ctx context.Context, client clientset.Interface, deploymentName string) (*appsv1.Deployment, error) {
-	selector := fmt.Sprintf("metadata.name=%s", deploymentName)
-	deployments, err := client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		FieldSelector: selector,
-	})
+func findServiceByPodLabels(ctx context.Context, client clientset.Interface, pod *v1.Pod) (*v1.Service, error) {
+	podLabel := pod.Labels
+	if podLabel == nil {
+		return nil, fmt.Errorf("pod %s has no label", pod.Name)
+	}
+	labelSet := labels.Set(pod.Labels)
+	selectorObj := &metav1.LabelSelector{MatchLabels: podLabel}
+
+	services, err := client.CoreV1().Services(pod.Namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-
-	if len(deployments.Items) == 0 {
-		return nil, fmt.Errorf("deployment %s not found", deploymentName)
+	if len(services.Items) == 0 {
+		return nil, fmt.Errorf("no service found in namespace %s", pod.Namespace)
 	}
-
-	return &deployments.Items[0], nil
-}
-
-func findServiceByDeploymentLabels(ctx context.Context, client clientset.Interface, depolyment *appsv1.Deployment) (*v1.Service, error) {
-	selector := metav1.FormatLabelSelector(depolyment.Spec.Selector)
-	if selector == "" {
-		return nil, fmt.Errorf("no selector in deployment", depolyment.Name)
+	for _, service := range services.Items {
+		selector, err := metav1.LabelSelectorAsSelector(selectorObj)
+		if err != nil {
+			return nil, err
+		}
+		if selector.Matches(labelSet) {
+			return &service, nil
+		}
 	}
-
-	service, err := client.CoreV1().Services(depolyment.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(service.Items) == 0 {
-		return nil, fmt.Errorf("no service found in deployment")
-	}
-	return &service.Items[0], nil
+	return nil, nil
 }
 
 func buildServiceUrl(ctx context.Context, service *v1.Service) (*url.URL, error) {
