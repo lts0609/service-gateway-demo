@@ -44,7 +44,7 @@ func main() {
 				return
 			}
 
-			pod, err := client.CoreV1().Pods(v1.NamespaceAll).Get(ctx, podName, metav1.GetOptions{})
+			pod, err := DiscoverPodbyName(ctx, client, podName)
 			if err != nil {
 				klog.Errorf("Error get pod: %v", err)
 				req.URL.Path = "/error"
@@ -105,6 +105,21 @@ func extractFromRequestURL(path string) (string, error) {
 	}
 
 	return matches[1], nil
+}
+
+func DiscoverPodbyName(ctx context.Context, client clientset.Interface, podName string) (*v1.Pod, error) {
+	pods, err := client.CoreV1().Pods(v1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pod := range pods.Items {
+		if pod.Name == podName {
+			return &pod, nil
+		}
+	}
+
+	return nil, fmt.Errorf("pod %s not found", podName)
 }
 
 func findServiceByPodLabels(ctx context.Context, client clientset.Interface, pod *v1.Pod) (*v1.Service, error) {
