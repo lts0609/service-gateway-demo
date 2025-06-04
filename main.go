@@ -153,6 +153,6 @@ func buildServiceUrl(ctx context.Context, service *v1.Service) (*url.URL, error)
 
 	return &url.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%d", serviceHost, servicePort),
+		Host:   fmt.Sprintf("%s:%d", serviceHost, servicePort.Port),
 	}, nil
 }
