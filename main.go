@@ -79,6 +79,29 @@ func main() {
 			}
 			klog.Errorf("Proxying request to %s%s", req.URL.Host, req.URL.Path)
 		},
+
+		ModifyResponse: func(response *http.Response) error {
+			if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusMovedPermanently || response.StatusCode == http.StatusSeeOther {
+				location := response.Header.Get("Location")
+				klog.Errorf("location: %s", location)
+				if location == "" {
+					return nil
+				}
+				path := response.Request.Header.Get("X-Instance-Path")
+				if path == "" {
+					return nil
+				}
+				klog.Errorf("X-Instance-Path: %s", path)
+
+				if strings.HasPrefix(location, "/instance") && !strings.HasPrefix(path, "http") {
+					newLocation := path + location
+					klog.Errorf("new location: %s", newLocation)
+					response.Header.Set("Location", newLocation)
+					klog.Errorf("Redirecting URL:%s -> %s", location, newLocation)
+				}
+			}
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			klog.Errorf("Proxy error: %v", err)
 			http.Error(w, "Proxy error occurred", http.StatusInternalServerError)
