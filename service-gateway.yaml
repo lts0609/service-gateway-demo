@@ -17,6 +17,7 @@ spec:
     spec:
       nodeSelector:
         lts: lts
+      serviceAccountName: service-gateway-sa
       containers:
         - name: service-gateway-demo
           image: containercloud-mirror.xaidc.com/containercloud/service-gateway:v1
