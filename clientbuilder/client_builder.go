@@ -30,7 +30,7 @@ func NewClientBuilder() (*ClientBuilderImpl, error) {
 // Get the rest config
 func (c ClientBuilderImpl) Config() (*restclient.Config, error) {
 	config := c.ClientConfig
-	return restclient.AddUserAgent(config, "pod-creator"), nil
+	return restclient.AddUserAgent(config, "service-gateway"), nil
 }
 
 // Get the root client

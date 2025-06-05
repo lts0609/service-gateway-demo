@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-gateway-demo
+  namespace: default
+  labels:
+    app: service-gateway-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-gateway-demo
+  template:
+    metadata:
+      labels:
+        app: service-gateway-demo
+    spec:
+      nodeSelector:
+        lts: lts
+      containers:
+        - name: service-gateway-demo
+          image: containercloud-mirror.xaidc.com/containercloud/service-gateway:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-gateway-svc
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: service-gateway-demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
