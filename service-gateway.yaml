@@ -21,7 +21,7 @@ spec:
       containers:
         - name: service-gateway-demo
           image: containercloud-mirror.xaidc.com/containercloud/service-gateway:v1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
