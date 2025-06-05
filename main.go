@@ -72,36 +72,33 @@ func main() {
 			req.URL.Path = newPath
 			req.URL.Scheme = serviceUrl.Scheme
 			req.URL.Host = serviceUrl.Host
-
-			// 设置必要的请求头
-			if _, ok := req.Header["User-Agent"]; !ok {
-				req.Header.Set("User-Agent", "")
-			}
+			req.Header.Set("X-Instance-Path", fmt.Sprintf("/instance/%s", podName))
 			klog.Errorf("Proxying request to %s%s", req.URL.Host, req.URL.Path)
 		},
 
 		ModifyResponse: func(response *http.Response) error {
-			if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusMovedPermanently || response.StatusCode == http.StatusSeeOther {
-				location := response.Header.Get("Location")
-				klog.Errorf("location: %s", location)
+			path := response.Request.Header.Get("X-Instance-Path")
+			if path == "" {
+				klog.Errorf("x-instance-path header not found")
+				return nil
+			}
+
+			if isRedirectStatusCode(response.StatusCode) {
+				location := response.Request.Header.Get("Location")
 				if location == "" {
 					return nil
 				}
-				path := response.Request.Header.Get("X-Instance-Path")
-				if path == "" {
-					return nil
-				}
-				klog.Errorf("X-Instance-Path: %s", path)
-
-				if strings.HasPrefix(location, "/instance") && !strings.HasPrefix(path, "http") {
+				if strings.HasPrefix(location, "/") && !strings.HasPrefix(path, "http") {
 					newLocation := path + location
 					klog.Errorf("new location: %s", newLocation)
 					response.Header.Set("Location", newLocation)
 					klog.Errorf("Redirecting URL:%s -> %s", location, newLocation)
 				}
 			}
+
 			return nil
 		},
+
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			klog.Errorf("Proxy error: %v", err)
 			http.Error(w, "Proxy error occurred", http.StatusInternalServerError)
@@ -194,4 +191,14 @@ func buildServiceUrl(ctx context.Context, service *v1.Service) (*url.URL, error)
 		Scheme: "http",
 		Host:   fmt.Sprintf("%s:%d", serviceHost, servicePort.Port),
 	}, nil
+}
+
+func isRedirectStatusCode(code int) bool {
+	return code == http.StatusMovedPermanently ||
+		code == http.StatusFound ||
+		code == http.StatusSeeOther ||
+		code == http.StatusNotModified ||
+		code == http.StatusUseProxy ||
+		code == http.StatusTemporaryRedirect ||
+		code == http.StatusPermanentRedirect
 }
