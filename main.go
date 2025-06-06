@@ -69,10 +69,16 @@ func main() {
 			if newPath == "" {
 				newPath = "/"
 			}
+			klog.Errorf("pre req header is %v", req.Header)
+			klog.Errorf("pre req host is %v", req.Host)
+			klog.Errorf("pre url is %v", req.URL)
 			req.URL.Path = newPath
 			req.URL.Scheme = serviceUrl.Scheme
 			req.URL.Host = serviceUrl.Host
-			klog.Errorf("req is %v", req)
+			klog.Errorf("after req header is %v", req.Header)
+			klog.Errorf("after req host is %v", req.Host)
+			klog.Errorf("after url is %v", req.URL)
+
 			klog.Errorf("Proxying request to %s%s", req.URL.Host, req.URL.Path)
 		},
 
