@@ -27,7 +27,9 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
     && apk del tzdata \
     && rm -rf /var/cache/apk/*
 
-COPY --from=builder --chmod=755 /app/service-gateway .
+COPY --from=builder /app/service-gateway .
+
+RUN chmod 755 ./service-gateway
 
 EXPOSE 8080
 
