@@ -87,7 +87,7 @@ func main() {
 			}
 
 			if isRedirectStatusCode(response.StatusCode) {
-				location := response.Request.Header.Get("Location")
+				location := response.Header.Get("Location")
 				if location == "" {
 					return nil
 				}
