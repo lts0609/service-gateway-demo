@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"net/http"
@@ -12,7 +10,6 @@ import (
 	"net/url"
 	"regexp"
 	"service-proxy-demo/clientbuilder"
-	"strconv"
 	"strings"
 	"time"
 
@@ -75,47 +72,8 @@ func main() {
 			req.URL.Path = newPath
 			req.URL.Scheme = serviceUrl.Scheme
 			req.URL.Host = serviceUrl.Host
-			req.Header.Set("X-Instance-Path", fmt.Sprintf("/instance/%s", podName))
+			klog.Errorf("req is %v", req)
 			klog.Errorf("Proxying request to %s%s", req.URL.Host, req.URL.Path)
-		},
-
-		ModifyResponse: func(response *http.Response) error {
-			path := response.Request.Header.Get("X-Instance-Path")
-			if path == "" {
-				klog.Errorf("x-instance-path header not found")
-				return nil
-			}
-
-			if isRedirectStatusCode(response.StatusCode) {
-				location := response.Header.Get("Location")
-				if location == "" {
-					return nil
-				}
-				if strings.HasPrefix(location, "/") && !strings.HasPrefix(path, "http") {
-					newLocation := path + location
-					klog.Errorf("new location: %s", newLocation)
-					response.Header.Set("Location", newLocation)
-					klog.Errorf("Redirecting URL:%s -> %s", location, newLocation)
-				}
-			}
-
-			contentType := response.Header.Get("Content-Type")
-			if strings.Contains(contentType, "text/html") {
-				bodyBytes, err := io.ReadAll(response.Body)
-				if err != nil {
-					return err
-				}
-				defer response.Body.Close()
-
-				// 替换 HTML 中的相对路径
-				updatedBody := rewriteRelativePathsInHTML(bodyBytes, path)
-
-				response.Body = io.NopCloser(bytes.NewReader(updatedBody))
-				response.ContentLength = int64(len(updatedBody))
-				response.Header.Set("Content-Length", strconv.Itoa(len(updatedBody)))
-				klog.Infof("Rewrote HTML content for instance %s", path)
-			}
-			return nil
 		},
 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -220,43 +178,4 @@ func isRedirectStatusCode(code int) bool {
 		code == http.StatusUseProxy ||
 		code == http.StatusTemporaryRedirect ||
 		code == http.StatusPermanentRedirect
-}
-
-func rewriteRelativePathsInHTML(body []byte, path string) []byte {
-	// 替换 href 属性（处理绝对路径和相对路径）
-	body = bytes.ReplaceAll(
-		body,
-		[]byte(`href="/`),
-		[]byte(fmt.Sprintf(`href="%s/`, path)),
-	)
-
-	// 替换 src 属性
-	body = bytes.ReplaceAll(
-		body,
-		[]byte(`src="/`),
-		[]byte(fmt.Sprintf(`src="%s/`, path)),
-	)
-
-	// 替换 form action 属性
-	body = bytes.ReplaceAll(
-		body,
-		[]byte(`action="/`),
-		[]byte(fmt.Sprintf(`action="%s/`, path)),
-	)
-
-	// 替换 URL 中的相对路径（如 CSS 中的 background-image）
-	body = bytes.ReplaceAll(
-		body,
-		[]byte(`url("/`),
-		[]byte(fmt.Sprintf(`url("%s/`, path)),
-	)
-
-	// 替换 JavaScript 中的相对路径（谨慎处理，避免误判）
-	body = bytes.ReplaceAll(
-		body,
-		[]byte(`"/`),
-		[]byte(fmt.Sprintf(`"%s/`, path)),
-	)
-
-	return body
 }
