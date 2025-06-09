@@ -146,6 +146,7 @@ func findServiceByPodLabels(ctx context.Context, client clientset.Interface, pod
 		if err != nil {
 			return nil, err
 		}
+		// if selector is empyt, it will match the service "kubernetes"
 		if !selector.Empty() && selector.Matches(labelSet) {
 			return &service, nil
 		}
