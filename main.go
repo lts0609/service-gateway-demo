@@ -176,13 +176,3 @@ func buildServiceUrl(ctx context.Context, service *v1.Service) (*url.URL, error)
 		Host:   fmt.Sprintf("%s:%d", serviceHost, servicePort.Port),
 	}, nil
 }
-
-func isRedirectStatusCode(code int) bool {
-	return code == http.StatusMovedPermanently ||
-		code == http.StatusFound ||
-		code == http.StatusSeeOther ||
-		code == http.StatusNotModified ||
-		code == http.StatusUseProxy ||
-		code == http.StatusTemporaryRedirect ||
-		code == http.StatusPermanentRedirect
-}
